@@ -6,6 +6,7 @@ export default function Login() {
 
   const [mode, setMode] = useState('signin')
   const [form, setForm] = useState({ full_name: '', email: '', password: '' })
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
 
@@ -15,6 +16,7 @@ export default function Login() {
 
   const switchMode = () => {
     setMode(isSignup ? 'signin' : 'signup')
+    setShowPassword(false)
     setError(null)
   }
 
@@ -86,14 +88,25 @@ export default function Login() {
 
           <div className="field" style={{ marginBottom: 14 }}>
             <label>Password</label>
-            <input
-              type="password"
-              required
-              minLength={isSignup ? 8 : undefined}
-              autoComplete={isSignup ? 'new-password' : 'current-password'}
-              value={form.password}
-              onChange={update('password')}
-            />
+            <div className="password-wrap">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                minLength={isSignup ? 8 : undefined}
+                autoComplete={isSignup ? 'new-password' : 'current-password'}
+                value={form.password}
+                onChange={update('password')}
+              />
+              <button
+                type="button"
+                className="password-toggle"
+                onClick={() => setShowPassword((shown) => !shown)}
+                aria-pressed={showPassword}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
           </div>
 
           {error && <p className="auth-error">{error}</p>}

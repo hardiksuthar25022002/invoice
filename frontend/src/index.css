@@ -724,6 +724,43 @@ tbody tr.clickable:hover { background: rgba(31,94,77,0.05); cursor: pointer; }
 
 .auth-card .field:last-of-type { margin-bottom: 0; }
 
+/* Show/hide password toggle, sits inside the field */
+.password-wrap {
+  position: relative;
+  display: flex;
+}
+
+.password-wrap input {
+  flex: 1;
+  min-width: 0;
+  padding-right: 64px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  padding: 4px 7px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ledger);
+  cursor: pointer;
+}
+
+.password-toggle:hover { background: rgba(22, 36, 31, 0.07); }
+
+.password-toggle:focus-visible {
+  outline: 2px solid var(--ledger);
+  outline-offset: 1px;
+}
+
 .auth-error {
   color: var(--brick);
   font-size: 0.82rem;
