@@ -35,9 +35,10 @@ export default function Privacy() {
 
       <LegalSection title="2. What we do not collect">
         <p>
-          There are no passwords (sign-in codes are single use), no card or
-          payment details, no advertising identifiers and no third-party
-          analytics or tracking scripts in the app.
+          There are no card or payment details, no advertising identifiers and
+          no third-party analytics or tracking scripts in the app. Your password
+          is handled by Supabase Auth, which stores only a salted hash — the app
+          itself never sees or keeps it in plain text.
         </p>
       </LegalSection>
 
@@ -53,8 +54,9 @@ export default function Privacy() {
 
       <LegalSection title="4. Email">
         <p>
-          Supabase sends the one-time sign-in codes on our behalf. Your address
-          is not used for marketing, and it is not shared with anyone else.
+          Supabase sends account emails on our behalf, such as confirming your
+          address or resetting a forgotten password. Your address is not used
+          for marketing, and it is not shared with anyone else.
         </p>
       </LegalSection>
 

@@ -1,5 +1,5 @@
-import { ArrowLeft, ReceiptText } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Eye, EyeOff, ReceiptText } from 'lucide-react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { useAuth } from '@/AuthContext'
@@ -12,80 +12,63 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from '@/components/ui/field'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 
-/** Supabase emails are rate limited, so the resend button waits its turn. */
-const RESEND_SECONDS = 30
+type Mode = 'signin' | 'signup'
 
-type Step = 'email' | 'code'
+interface LoginForm {
+  full_name: string
+  email: string
+  password: string
+}
 
 export default function Login() {
-  const { sendLoginCode, verifyLoginCode } = useAuth()
+  const { login, register } = useAuth()
 
-  const [step, setStep] = useState<Step>('email')
-  const [email, setEmail] = useState('')
-  const [token, setToken] = useState('')
-  const [sentTo, setSentTo] = useState('')
+  const [mode, setMode] = useState<Mode>('signin')
+  const [form, setForm] = useState<LoginForm>({
+    full_name: '',
+    email: '',
+    password: '',
+  })
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [cooldown, setCooldown] = useState(0)
 
-  const isCodeStep = step === 'code'
+  const isSignup = mode === 'signup'
 
-  useEffect(() => {
-    if (cooldown <= 0) return
+  const setField = (field: keyof LoginForm, value: string) =>
+    setForm((f) => ({ ...f, [field]: value }))
 
-    const timer = setTimeout(() => setCooldown((seconds) => seconds - 1), 1000)
-    return () => clearTimeout(timer)
-  }, [cooldown])
+  const switchMode = () => {
+    setMode(isSignup ? 'signin' : 'signup')
+    setShowPassword(false)
+    setError(null)
+  }
 
-  const send = async (address: string) => {
+  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
     setBusy(true)
     setError(null)
 
     try {
-      await sendLoginCode(address)
-      setSentTo(address)
-      setToken('')
-      setStep('code')
-      setCooldown(RESEND_SECONDS)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const submitEmail = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    void send(email.trim())
-  }
-
-  const submitCode = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setBusy(true)
-    setError(null)
-
-    try {
-      await verifyLoginCode(email, token)
-      // No navigation needed: the auth listener swaps in the app shell.
+      if (isSignup) {
+        await register({
+          full_name: form.full_name.trim(),
+          email: form.email.trim(),
+          password: form.password,
+        })
+      } else {
+        await login({
+          email: form.email.trim(),
+          password: form.password,
+        })
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
       setBusy(false)
     }
-  }
-
-  const backToEmail = () => {
-    setStep('email')
-    setToken('')
-    setError(null)
-    setCooldown(0)
   }
 
   return (
@@ -96,115 +79,92 @@ export default function Login() {
             <ReceiptText className="size-4" />
           </div>
           <CardTitle className="text-xl">
-            {isCodeStep ? 'Enter your code' : 'Sign in to Ledger'}
+            {isSignup ? 'Create your account' : 'Sign in to Ledger'}
           </CardTitle>
           <CardDescription>
-            {isCodeStep
-              ? `We emailed a six-digit code to ${sentTo}.`
-              : 'No password to remember — we email you a one-time code.'}
+            {isSignup
+              ? 'Your companies and invoices stay private to your account.'
+              : 'Sign in to reach your invoices and companies.'}
           </CardDescription>
         </CardHeader>
 
         <CardContent>
-          {isCodeStep ? (
-            <form onSubmit={submitCode}>
-              <FieldGroup>
+          <form onSubmit={submit}>
+            <FieldGroup>
+              {isSignup && (
                 <Field>
-                  <FieldLabel htmlFor="token">One-time code</FieldLabel>
+                  <FieldLabel htmlFor="full_name">Full name</FieldLabel>
                   <Input
-                    id="token"
-                    name="token"
+                    id="full_name"
                     required
-                    autoFocus
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    pattern="[0-9]{6}"
-                    maxLength={6}
-                    placeholder="123456"
-                    className="text-center font-mono text-lg tracking-[0.5em]"
-                    value={token}
-                    onChange={(e) =>
-                      setToken(e.target.value.replace(/\D/g, '').slice(0, 6))
-                    }
+                    autoComplete="name"
+                    value={form.full_name}
+                    onChange={(e) => setField('full_name', e.target.value)}
                   />
-                  <FieldDescription>
-                    You can tap the link in the email instead, if you prefer.
-                  </FieldDescription>
                 </Field>
+              )}
 
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
+              <Field>
+                <FieldLabel htmlFor="email">Email</FieldLabel>
+                <Input
+                  id="email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={form.email}
+                  onChange={(e) => setField('email', e.target.value)}
+                />
+              </Field>
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={busy || token.length < 6}
-                >
-                  {busy ? 'Checking…' : 'Verify and sign in'}
-                </Button>
-
-                <div className="flex items-center justify-between gap-1">
+              <Field>
+                <FieldLabel htmlFor="password">Password</FieldLabel>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    minLength={isSignup ? 8 : undefined}
+                    autoComplete={isSignup ? 'new-password' : 'current-password'}
+                    className="pr-10"
+                    value={form.password}
+                    onChange={(e) => setField('password', e.target.value)}
+                  />
                   <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
-                    onClick={backToEmail}
+                    size="icon-sm"
+                    className="absolute top-1/2 right-1 -translate-y-1/2"
+                    onClick={() => setShowPassword((shown) => !shown)}
+                    aria-pressed={showPassword}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
-                    <ArrowLeft />
-                    Different email
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy || cooldown > 0}
-                    onClick={() => void send(email)}
-                  >
-                    {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
+                    {showPassword ? <EyeOff /> : <Eye />}
                   </Button>
                 </div>
-              </FieldGroup>
-            </form>
-          ) : (
-            <form onSubmit={submitEmail}>
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="email">Email</FieldLabel>
-                  <Input
-                    id="email"
-                    type="email"
-                    required
-                    autoFocus
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                  <FieldDescription>
-                    New addresses get an account automatically — no sign-up
-                    form.
-                  </FieldDescription>
-                </Field>
+              </Field>
 
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={busy || !email.trim()}
-                >
-                  {busy ? 'Sending…' : 'Email me a code'}
-                </Button>
-              </FieldGroup>
-            </form>
-          )}
+              <Button type="submit" className="w-full" disabled={busy}>
+                {busy ? 'Please wait…' : isSignup ? 'Create account' : 'Sign in'}
+              </Button>
+            </FieldGroup>
+          </form>
+
+          <p className="text-muted-foreground mt-4 text-center text-sm">
+            {isSignup ? 'Already have an account?' : "Don't have an account?"}{' '}
+            <button
+              type="button"
+              className="text-foreground font-medium underline-offset-4 hover:underline"
+              onClick={switchMode}
+            >
+              {isSignup ? 'Sign in' : 'Create one'}
+            </button>
+          </p>
         </CardContent>
       </Card>
 

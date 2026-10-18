@@ -21,11 +21,10 @@ export default function Terms() {
 
       <LegalSection title="2. Your account">
         <p>
-          Sign-in is passwordless: we email a one-time code to your address.
-          Anyone who can read that inbox can sign in as you, so keep that
-          mailbox secure. You are responsible for what happens through your
-          account, and for the accuracy of the details on the invoices you
-          issue.
+          Sign-in uses your email address and a password you choose. Keep that
+          password to yourself — anyone who has it can sign in as you, and you
+          are responsible for what happens through your account, and for the
+          accuracy of the details on the invoices you issue.
         </p>
       </LegalSection>
 

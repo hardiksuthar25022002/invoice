@@ -55,18 +55,12 @@ bun run dev          # or: npm run dev
 bun run test         # or: npm test — component tests on React 19
 ```
 
-Open **http://localhost:5173**, enter your email, and type the six-digit code
-Supabase emails you. There is no sign-up form: verifying a code for a new
-address creates the account.
+Open **http://localhost:5173** and create an account from the first screen.
 
-> **Make the code show up in the email.** Supabase's default *Magic Link*
-> template only contains `{{ .ConfirmationURL }}`. Add `{{ .Token }}` to it
-> under *Authentication → Email Templates* — otherwise the email still works,
-> but by clicking the link rather than typing a code.
->
-> **Local dev tip:** the built-in SMTP service is rate limited to a couple of
-> emails per hour, which is easy to hit while testing. Wait it out, or connect
-> your own SMTP under *Project Settings → Auth → SMTP Settings*.
+> **Local dev tip:** by default Supabase asks new users to confirm their email.
+> For a frictionless local setup, turn that off under
+> *Authentication → Providers → Email → Confirm email*. With it on, you'll see
+> "Check your inbox to confirm your email, then sign in."
 
 ## Deploying
 
@@ -108,10 +102,9 @@ redirects land back on your app.
 
 ## Features
 
-- **Accounts** — passwordless sign-in: Supabase emails a one-time code (or a
-  magic link) and verifying it creates the account if it is new. Every company
-  and invoice belongs to the account that created it, enforced by row level
-  security in the database.
+- **Accounts** — sign up and sign in with Supabase Auth (email + password).
+  Every company and invoice belongs to the account that created it, enforced by
+  row level security in the database.
 - **Profile** — your own details (business name, job title, address, phone, tax
   ID, PAN, SAC code, bank/UPI) are the **billed from** side of every invoice
 - **Companies** — the clients you bill, the **billed to** party
@@ -160,7 +153,7 @@ frontend/
   src/
     supabase.ts              # supabase-js client
     api.ts                   # data layer (auth, companies, invoices, dashboard)
-    AuthContext.tsx          # session + profile state, email-OTP sign-in
+    AuthContext.tsx          # session + profile state
     types.ts                 # shared domain types
     pdf.ts                   # browser PDF export (html2canvas + jsPDF)
     pages/                   # Login, Dashboard, Companies, NewCompany, Profile,
@@ -187,9 +180,8 @@ frontend/
   that uses `asChild` (dropdown menus, alert dialogs, tooltips) loses its anchor
   node and its popup renders off-screen — the buttons look dead.
   `src/components/ui/ref-forwarding.test.tsx` guards this.
-- Auth is passwordless (Supabase email OTP), so there is no password to reset
-  and no password stored anywhere. The sign-in email must keep both the magic
-  link and the `{{ .Token }}` code to support either path.
+- Auth is Supabase's email/password provider: no password reset UI is wired up
+  yet (Supabase handles the reset emails, the app doesn't link to them).
 - The Terms of Service and Privacy Policy pages ship as **templates** — they are
   written for this app, but review them before relying on them. Change the
   operator name and contact address in `frontend/src/lib/legal.ts`.

@@ -6,13 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '@/AuthContext'
 import Login from '@/pages/Login'
 
-/* The Supabase client is mocked, but everything above it — api.ts and
- * AuthContext — is the real thing, so these tests cover the whole OTP flow. */
+/* The Supabase client is mocked, but api.ts and AuthContext are the real
+ * thing, so these tests cover the whole sign-in / sign-up path. */
 const supa = vi.hoisted(() => ({
-  signInWithOtp: vi.fn().mockResolvedValue({ error: null }),
-  verifyOtp: vi
-    .fn()
-    .mockResolvedValue({ data: { session: { access_token: 'token' } }, error: null }),
+  session: { data: { session: { access_token: 'token' } }, error: null },
+  signUp: vi.fn(),
+  signInWithPassword: vi.fn(),
   onAuthStateChange: vi.fn(() => ({
     data: { subscription: { unsubscribe: () => {} } },
   })),
@@ -24,8 +23,8 @@ const supa = vi.hoisted(() => ({
 vi.mock('@/supabase', () => ({
   supabase: {
     auth: {
-      signInWithOtp: supa.signInWithOtp,
-      verifyOtp: supa.verifyOtp,
+      signUp: supa.signUp,
+      signInWithPassword: supa.signInWithPassword,
       onAuthStateChange: supa.onAuthStateChange,
       getUser: supa.getUser,
       signOut: supa.signOut,
@@ -47,7 +46,7 @@ function fill(input: HTMLInputElement, value: string) {
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
 
-describe('Login (email OTP)', () => {
+describe('Login (email + password)', () => {
   let container: HTMLDivElement
   let root: ReturnType<typeof createRoot>
 
@@ -56,6 +55,8 @@ describe('Login (email OTP)', () => {
       globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true
     vi.clearAllMocks()
+    supa.signUp.mockResolvedValue(supa.session)
+    supa.signInWithPassword.mockResolvedValue(supa.session)
     container = document.createElement('div')
     document.body.append(container)
     root = createRoot(container)
@@ -66,7 +67,7 @@ describe('Login (email OTP)', () => {
     container.remove()
   })
 
-  it('asks for an email, emails a code, then verifies it', async () => {
+  const renderLogin = async () => {
     await act(async () => {
       root.render(
         <MemoryRouter>
@@ -76,48 +77,39 @@ describe('Login (email OTP)', () => {
         </MemoryRouter>,
       )
     })
+  }
 
-    const submit = () =>
-      container
-        .querySelector('form')
-        ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+  const submit = () =>
+    container
+      .querySelector('form')
+      ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
 
-    // Step one: email only — no password field, and no submit until typed.
-    const email = container.querySelector<HTMLInputElement>('#email')
-    expect(email).not.toBeNull()
-    expect(container.querySelector('#password')).toBeNull()
-    expect(
-      container.querySelector('button[type="submit"]')?.hasAttribute('disabled'),
-    ).toBe(true)
+  const clickButton = (label: string) => {
+    const button = [...container.querySelectorAll('button')].find(
+      (candidate) =>
+        candidate.textContent?.trim() === label ||
+        candidate.getAttribute('aria-label') === label,
+    )
+    expect(button, `expected a "${label}" button`).not.toBeNull()
+    button?.dispatchEvent(
+      new MouseEvent('click', { bubbles: true, cancelable: true }),
+    )
+  }
 
-    await act(async () => {
-      fill(email!, 'ravi@example.com')
-    })
+  const field = (selector: string) =>
+    container.querySelector<HTMLInputElement>(selector)
 
-    expect(
-      container.querySelector('button[type="submit"]')?.hasAttribute('disabled'),
-    ).toBe(false)
+  it('signs in with email and password', async () => {
+    await renderLogin()
 
-    await act(async () => {
-      submit()
-      await flush()
-    })
-
-    expect(supa.signInWithOtp).toHaveBeenCalledWith({
-      email: 'ravi@example.com',
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: window.location.origin,
-      },
-    })
-
-    // Step two: the code box replaces the email box.
-    const token = container.querySelector<HTMLInputElement>('#token')
-    expect(token, 'code step should be shown').not.toBeNull()
-    expect(container.textContent).toContain('ravi@example.com')
+    // Sign-in mode by default: no full name field.
+    expect(field('#email')).not.toBeNull()
+    expect(field('#password')).not.toBeNull()
+    expect(field('#full_name')).toBeNull()
 
     await act(async () => {
-      fill(token!, '123456')
+      fill(field('#email')!, 'ravi@example.com')
+      fill(field('#password')!, 'hunter2hunter2')
     })
 
     await act(async () => {
@@ -125,23 +117,62 @@ describe('Login (email OTP)', () => {
       await flush()
     })
 
-    expect(supa.verifyOtp).toHaveBeenCalledWith({
+    expect(supa.signInWithPassword).toHaveBeenCalledWith({
       email: 'ravi@example.com',
-      token: '123456',
-      type: 'email',
+      password: 'hunter2hunter2',
     })
+    expect(supa.signUp).not.toHaveBeenCalled()
+  })
+
+  it('creates an account with a full name', async () => {
+    await renderLogin()
+
+    await act(async () => {
+      clickButton('Create one')
+    })
+
+    const fullName = field('#full_name')
+    expect(fullName, 'sign-up asks for a name').not.toBeNull()
+
+    await act(async () => {
+      fill(fullName!, 'Ravi Kumar')
+      fill(field('#email')!, 'ravi@example.com')
+      fill(field('#password')!, 'hunter2hunter2')
+    })
+
+    await act(async () => {
+      submit()
+      await flush()
+    })
+
+    expect(supa.signUp).toHaveBeenCalledWith({
+      email: 'ravi@example.com',
+      password: 'hunter2hunter2',
+      options: { data: { full_name: 'Ravi Kumar' } },
+    })
+    expect(supa.signInWithPassword).not.toHaveBeenCalled()
+  })
+
+  it('shows and hides the password', async () => {
+    await renderLogin()
+
+    expect(field('#password')?.type).toBe('password')
+
+    await act(async () => {
+      clickButton('Show password')
+    })
+
+    expect(field('#password')?.type).toBe('text')
+
+    await act(async () => {
+      clickButton('Hide password')
+    })
+
+    expect(field('#password')?.type).toBe('password')
   })
 
   it('links to the terms and privacy pages', async () => {
-    await act(async () => {
-      root.render(
-        <MemoryRouter>
-          <AuthProvider>
-            <Login />
-          </AuthProvider>
-        </MemoryRouter>,
-      )
-    })
+    await renderLogin()
 
     expect(container.querySelector('a[href="/terms"]')).not.toBeNull()
     expect(container.querySelector('a[href="/privacy"]')).not.toBeNull()
