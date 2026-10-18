@@ -3,8 +3,8 @@
 A small full-stack invoicing app: add clients, generate invoices, and track
 everything from a dashboard.
 
-- **Frontend**: React (Vite), plain CSS design system, deploys to **Netlify**
-  (or **Vercel**)
+- **Frontend**: React + **TypeScript** (Vite), **Tailwind v4** with
+  **shadcn/ui** components, deploys to **Netlify** (or **Vercel**)
 - **Backend**: none — **Supabase** provides auth, the Postgres database, and
   row level security
 - **PDFs**: rendered in the browser, downloaded straight from the invoice page
@@ -115,11 +115,13 @@ redirects land back on your app.
 - **Download PDF** — the invoice is captured in the browser and saved as a PDF,
   with no browser print dialog
 - **Works on a phone** — the sidebar becomes a slide-in drawer, wide tables
-  become labelled cards, and the invoice builder stacks its line items
+  scroll sideways, and the invoice builder stacks its line items
+- **Light and dark** — a theme switch in the header (light / dark / system);
+  the invoice preview stays a white sheet in both, so the PDF is unchanged
 
 ## How data access works
 
-There is no API layer. `frontend/src/api.js` is a thin wrapper over
+There is no API layer. `frontend/src/api.ts` is a thin wrapper over
 `supabase-js` that keeps the same method names the pages already used. Every
 query runs as the signed-in user, and the database decides what they can see:
 
@@ -140,18 +142,26 @@ supabase/
   migrations/0001_init.sql   # tables, RLS, triggers, dashboard_stats()
 
 frontend/
-  public/_redirects           # SPA fallback for Netlify
+  components.json            # shadcn/ui configuration (radix-nova, neutral)
+  public/_redirects          # SPA fallback for Netlify
   vercel.json                # SPA rewrite for Vercel
   .env.example               # VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
   src/
-    supabase.js              # supabase-js client
-    api.js                   # data layer (auth, companies, invoices, dashboard)
-    AuthContext.jsx          # session + profile state
-    pdf.js                   # browser PDF export (html2canvas + jsPDF)
+    supabase.ts              # supabase-js client
+    api.ts                   # data layer (auth, companies, invoices, dashboard)
+    AuthContext.tsx          # session + profile state
+    types.ts                 # shared domain types
+    pdf.ts                   # browser PDF export (html2canvas + jsPDF)
     pages/                   # Login, Dashboard, Companies, NewCompany, Profile,
                              # Invoices, NewInvoice, InvoiceDetail
-    components/              # Sidebar, StatusStamp
-    index.css                # design system (tokens, layout, components)
+    components/
+      layout/                # app-sidebar, header (breadcrumbs), main, nav-*
+      ui/                    # shadcn/ui primitives
+      theme-switch.tsx       # light / dark / system
+    context/theme-context.tsx  # theme state, applied as `.dark` on <html>
+    lib/                     # cn() and INR/date formatters
+    index.css                # Tailwind v4 + shadcn theme tokens (hex)
+    styles/invoice.css       # the invoice "paper" (hex-only, for html2canvas)
 ```
 
 `netlify.toml` sits at the repository root so Netlify builds `frontend/`.
@@ -161,8 +171,11 @@ frontend/
 - Auth is Supabase's email/password provider: no password reset UI is wired up
   yet (Supabase handles the reset emails, the app doesn't link to them).
 - The invoice PDF is a raster capture of the on-screen preview, so its text is
-  not selectable. Swapping in a vector renderer would mean rebuilding the
-  layout in that library's primitives.
+  not selectable. The capture is taken at A4 measurements and drawn edge to
+  edge, so the sheet fills the page exactly — a very long invoice (dozens of
+  line items) is the only case that spills onto a second page. Swapping in a
+  vector renderer would mean rebuilding the layout in that library's
+  primitives.
 - One sender identity per account. Supporting several businesses on one login
   would mean a `senders` table that invoices point at.
 - "Overdue" is computed automatically when a due date has passed and the
