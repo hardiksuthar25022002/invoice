@@ -40,7 +40,10 @@ export function AppHeader() {
   return (
     <header className="bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 flex h-14 shrink-0 items-center gap-2 border-b px-4 backdrop-blur md:px-6">
       <SidebarTrigger className="-ml-1" />
-      <Separator orientation="vertical" className="mr-1 h-4" />
+      {/* The preset's Separator sets `data-vertical:self-stretch`, which leaves
+          this short divider top-aligned (and full-height). Force both with `!`
+          so it stays a 16px centred tick. */}
+      <Separator orientation="vertical" className="mr-1 h-4! self-center!" />
 
       <Breadcrumb className="hidden sm:block">
         <BreadcrumbList>

@@ -52,6 +52,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 ```bash
 bun install          # or: npm install
 bun run dev          # or: npm run dev
+bun run test         # or: npm test — component tests on React 19
 ```
 
 Open **http://localhost:5173** and create an account from the first screen.
@@ -168,6 +169,12 @@ frontend/
 
 ## Notes / next steps
 
+- **React 19 is required.** The shadcn components in `frontend/src/components/ui`
+  take `ref` as a prop (there is no `forwardRef` anywhere), which is React 19
+  behaviour. On React 18 `ref` is stripped from props, so every Radix trigger
+  that uses `asChild` (dropdown menus, alert dialogs, tooltips) loses its anchor
+  node and its popup renders off-screen — the buttons look dead.
+  `src/components/ui/ref-forwarding.test.tsx` guards this.
 - Auth is Supabase's email/password provider: no password reset UI is wired up
   yet (Supabase handles the reset emails, the app doesn't link to them).
 - The invoice PDF is a raster capture of the on-screen preview, so its text is
