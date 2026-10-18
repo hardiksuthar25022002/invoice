@@ -48,6 +48,26 @@ function errorStatus(error: unknown, fallback: number) {
   return typeof status === 'number' ? status : fallback
 }
 
+/**
+ * Supabase's built-in mail service only sends 2 auth emails per hour for the
+ * whole project (Authentication → Rate Limits), so a 429 while testing is
+ * expected and "email rate limit exceeded" deserves friendlier wording.
+ */
+function emailError(error: unknown, fallback: number) {
+  const status = errorStatus(error, fallback)
+  const message = (error as SupabaseError | null)?.message ?? ''
+
+  if (status === 429 || /rate limit/i.test(message)) {
+    return new ApiError(
+      429,
+      'Supabase sends only a couple of confirmation and reset emails an hour ' +
+        'unless custom SMTP is configured. Please try again a little later.',
+    )
+  }
+
+  return new ApiError(status, message)
+}
+
 function unwrap<T>({ data, error }: { data: T | null; error: SupabaseError | null }) {
   if (error) throw new ApiError(errorStatus(error, 400), error.message)
 
@@ -108,7 +128,7 @@ export const api = {
       options: { data: { full_name: full_name.trim() } },
     })
 
-    if (error) throw new ApiError(errorStatus(error, 400), error.message)
+    if (error) throw emailError(error, 400)
 
     // With "Confirm email" on there is no session until the link is opened, so
     // null tells the caller to show the "check your inbox" screen.
@@ -133,8 +153,38 @@ export const api = {
       email: email.trim().toLowerCase(),
     })
 
-    // Supabase answers 429 once the hourly email limit is reached.
-    if (error) throw new ApiError(errorStatus(error, 429), error.message)
+    if (error) throw emailError(error, 429)
+  },
+
+  /**
+   * Send the "reset your password" email. `redirectTo` is where Supabase sends
+   * the user once they click the link, and has to be an allowed URL in the
+   * project (Authentication → URL Configuration → Redirect URLs).
+   */
+  async requestPasswordReset(email: string, redirectTo?: string) {
+    const { error } = await supabase.auth.resetPasswordForEmail(
+      email.trim().toLowerCase(),
+      redirectTo ? { redirectTo } : undefined,
+    )
+
+    if (error) throw emailError(error, 429)
+  },
+
+  /**
+   * Set a new password for the signed-in user. On a recovery link this runs
+   * against the short-lived session Supabase creates from the URL.
+   */
+  async updatePassword(password: string) {
+    const { error } = await supabase.auth.updateUser({ password })
+
+    if (error) throw new ApiError(errorStatus(error, 400), error.message)
+  },
+
+  /** The session stored in the browser, without a round trip to the server. */
+  async session(): Promise<Session | null> {
+    const { data } = await supabase.auth.getSession()
+
+    return data.session
   },
 
   async logout() {

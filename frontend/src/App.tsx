@@ -17,12 +17,13 @@ import NewCompany from '@/pages/NewCompany'
 import NewInvoice from '@/pages/NewInvoice'
 import Privacy from '@/pages/Privacy'
 import Profile from '@/pages/Profile'
+import ResetPassword from '@/pages/ResetPassword'
 import Terms from '@/pages/Terms'
 
 const legalPaths = ['/terms', '/privacy']
 
 export default function App() {
-  const { user, loading, unconfirmedEmail } = useAuth()
+  const { user, loading, unconfirmedEmail, passwordRecovery } = useAuth()
   const { pathname } = useLocation()
 
   // The legal pages carry their own frame and must work signed out, so they are
@@ -43,6 +44,9 @@ export default function App() {
       </div>
     )
   }
+
+  // Arrived from a "reset your password" link: pick the new one first.
+  if (passwordRecovery) return <ResetPassword />
 
   // A session whose address was never confirmed never reaches the app shell.
   if (unconfirmedEmail) return <ConfirmEmail email={unconfirmedEmail} />

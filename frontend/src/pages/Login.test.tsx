@@ -35,6 +35,9 @@ const supa = vi.hoisted(() => ({
   signUp: vi.fn(),
   signInWithPassword: vi.fn(),
   resend: vi.fn().mockResolvedValue({ error: null }),
+  resetPasswordForEmail: vi.fn().mockResolvedValue({ error: null }),
+  updateUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
+  getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
   onAuthStateChange: vi.fn(() => ({
     data: { subscription: { unsubscribe: () => {} } },
   })),
@@ -49,6 +52,9 @@ vi.mock('@/supabase', () => ({
       signUp: supa.signUp,
       signInWithPassword: supa.signInWithPassword,
       resend: supa.resend,
+      resetPasswordForEmail: supa.resetPasswordForEmail,
+      updateUser: supa.updateUser,
+      getSession: supa.getSession,
       onAuthStateChange: supa.onAuthStateChange,
       getUser: supa.getUser,
       signOut: supa.signOut,
@@ -81,6 +87,7 @@ describe('Login (email + password)', () => {
     vi.clearAllMocks()
     supa.signUp.mockResolvedValue(supa.session)
     supa.signInWithPassword.mockResolvedValue(supa.session)
+    supa.resetPasswordForEmail.mockResolvedValue({ error: null })
     container = document.createElement('div')
     document.body.append(container)
     root = createRoot(container)
@@ -251,5 +258,64 @@ describe('Login (email + password)', () => {
 
     // Nowhere to go: no profile is loaded, so App would render ConfirmEmail.
     expect(supa.getUser).not.toHaveBeenCalled()
+  })
+
+  it('emails a reset link from the forgot-password screen', async () => {
+    await renderLogin()
+
+    await act(async () => {
+      clickButton('Forgot password?')
+    })
+
+    // Only the address: there is no password to type when you've lost it.
+    expect(field('#email')).not.toBeNull()
+    expect(field('#password')).toBeNull()
+    expect(field('#full_name')).toBeNull()
+
+    await act(async () => {
+      fill(field('#email')!, 'ravi@example.com')
+    })
+
+    await act(async () => {
+      submit()
+      await flush()
+    })
+
+    expect(supa.resetPasswordForEmail).toHaveBeenCalledWith(
+      'ravi@example.com',
+      { redirectTo: window.location.origin },
+    )
+    expect(container.textContent).toContain('Check your inbox')
+    expect(container.textContent).toContain('ravi@example.com')
+
+    await act(async () => {
+      clickButton('Resend reset link')
+      await flush()
+    })
+
+    expect(supa.resetPasswordForEmail).toHaveBeenCalledTimes(2)
+  })
+
+  it('explains the Supabase email limit instead of the raw 429', async () => {
+    supa.resetPasswordForEmail.mockResolvedValue({
+      error: { status: 429, message: 'Email rate limit exceeded' },
+    })
+    await renderLogin()
+
+    await act(async () => {
+      clickButton('Forgot password?')
+    })
+
+    await act(async () => {
+      fill(field('#email')!, 'ravi@example.com')
+    })
+
+    await act(async () => {
+      submit()
+      await flush()
+    })
+
+    expect(container.textContent).toContain('custom SMTP')
+    expect(container.textContent).not.toContain('rate limit exceeded')
   })
 })

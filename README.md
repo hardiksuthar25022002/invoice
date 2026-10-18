@@ -58,11 +58,13 @@ bun run test         # or: npm test — component tests on React 19
 Open **http://localhost:5173** and create an account from the first screen.
 
 > **Local dev tip:** by default Supabase asks new users to confirm their email.
-> For a frictionless local setup, turn that off under
-> *Authentication → Providers → Email → Confirm email*. With it on, you'll see
-> "Check your inbox to confirm your email, then sign in."
+> Running `supabase start` sends those emails to **Mailpit** at
+> http://localhost:54324 instead of the internet, so they arrive instantly and
+> there is no limit. Against a hosted project you get **2 auth emails per hour**
+> unless you configure custom SMTP — see *Emails: confirmation, reset, and their
+> limits* below.
 
-### 5. Require email confirmation
+### 5. Emails: confirmation, reset, and their limits
 
 Supabase signs new users straight in unless you tell it otherwise. To make
 everyone verify their address first, turn on **Authentication → Providers →
@@ -76,7 +78,29 @@ What the app does enforce is the consequence: any session whose
 `email_confirmed_at` is empty is refused and gets that same screen, so an
 unverified account never reaches the invoices.
 
-With the Supabase CLI the same option lives in `supabase/config.toml`:
+Reset links come from the *Forgot password?* button on the sign-in card. The
+link returns to the app root, where supabase-js turns it into a recovery session
+and the app asks for the new password. Keep *Authentication → URL Configuration*
+(Site URL, plus any localhost/preview entries) up to date, or those links will
+not come back to the app.
+
+**Sending limits.** Supabase's built-in mail service sends **2 auth emails per
+hour for the whole project** — confirmation, resend and reset all count — and
+answers `429 email rate limit exceeded` after that. It is for testing only.
+Three ways around it:
+
+- **Develop against the CLI stack.** `supabase start` routes every auth email to
+  Mailpit at http://localhost:54324, with no limits and no inbox to check.
+- **Configure custom SMTP** (*Authentication → Emails → SMTP Settings*) with
+  Resend, Brevo, Postmark, SES or similar. Only then can *Authentication → Rate
+  Limits → Emails sent by Supabase Auth* be raised above 2.
+- **Skip the email while testing.** Add users from *Authentication → Users → Add
+  user* with **Auto Confirm User** ticked — nothing is sent.
+
+The app turns that 429 into a plain-English message, and its resend button waits
+60 seconds between attempts (Supabase's per-address limit).
+
+With the Supabase CLI the confirmation option lives in `supabase/config.toml`:
 
 ```toml
 [auth.email]
@@ -123,10 +147,11 @@ redirects land back on your app.
 
 ## Features
 
-- **Accounts** — sign up and sign in with Supabase Auth (email + password).
-  Email confirmation can be required (see step 5), and the app refuses an
-  unverified session either way. Every company and invoice belongs to the
-  account that created it, enforced by row level security in the database.
+- **Accounts** — sign up and sign in with Supabase Auth (email + password), with
+  password reset by email. Email confirmation can be required (see step 5), and
+  the app refuses an unverified session either way. Every company and invoice
+  belongs to the account that created it, enforced by row level security in the
+  database.
 - **Profile** — your own details (business name, job title, address, phone, tax
   ID, PAN, SAC code, bank/UPI) are the **billed from** side of every invoice
 - **Companies** — the clients you bill, the **billed to** party
@@ -180,12 +205,12 @@ frontend/
     pdf.ts                   # browser PDF export (html2canvas + jsPDF)
     pages/                   # Login, Dashboard, Companies, NewCompany, Profile,
                              # Invoices, NewInvoice, InvoiceDetail, ConfirmEmail,
-                             # Terms, Privacy
+                             # ResetPassword, Terms, Privacy
                              # (the *.test.tsx files sit next to what they test)
     components/
       layout/                # app-sidebar, header (breadcrumbs), main, nav-*
       ui/                    # shadcn/ui primitives
-      confirm-email-card.tsx # "Confirm your email" + resend
+      check-inbox-card.tsx   # "Confirm your email" / "Check your inbox" + resend
       legal-footer.tsx       # terms/privacy line under the sign-in screens
       legal-page.tsx         # frame shared by Terms and Privacy
       theme-switch.tsx       # light / dark / system
@@ -205,8 +230,9 @@ frontend/
   that uses `asChild` (dropdown menus, alert dialogs, tooltips) loses its anchor
   node and its popup renders off-screen — the buttons look dead.
   `src/components/ui/ref-forwarding.test.tsx` guards this.
-- Auth is Supabase's email/password provider: no password reset UI is wired up
-  yet (Supabase handles the reset emails, the app doesn't link to them).
+- Auth is Supabase's email/password provider, with email confirmation (optional,
+  step 5) and password reset through the *Forgot password?* link. Both rely on
+  auth emails, so mind the 2-per-hour built-in limit described in step 5.
 - The Terms of Service and Privacy Policy pages ship as **templates** — they are
   written for this app, but review them before relying on them. Change the
   operator name and contact address in `frontend/src/lib/legal.ts`.

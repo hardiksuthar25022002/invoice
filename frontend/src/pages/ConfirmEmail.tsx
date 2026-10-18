@@ -1,5 +1,5 @@
 import { useAuth } from '@/AuthContext'
-import { ConfirmEmailCard } from '@/components/confirm-email-card'
+import { CheckInboxCard } from '@/components/check-inbox-card'
 import { LegalFooter } from '@/components/legal-footer'
 
 /**
@@ -8,14 +8,17 @@ import { LegalFooter } from '@/components/legal-footer'
  * that session in.
  */
 export default function ConfirmEmail({ email }: { email: string }) {
-  const { logout } = useAuth()
+  const { logout, resendConfirmation } = useAuth()
 
   return (
     <div className="bg-muted/40 flex min-h-svh flex-col items-center justify-center gap-6 p-4">
-      <ConfirmEmailCard
+      <CheckInboxCard
         email={email}
+        kind="confirm"
+        onResend={() => resendConfirmation(email)}
         onUseDifferentEmail={() => void logout()}
       />
+
       <LegalFooter />
     </div>
   )

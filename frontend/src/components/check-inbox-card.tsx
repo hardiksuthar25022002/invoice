@@ -1,7 +1,7 @@
 import { MailCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 
-import { useAuth } from '@/AuthContext'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,21 +12,50 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 
-/** Supabase rate limits its emails, so resending has to wait its turn. */
-const RESEND_SECONDS = 30
+/**
+ * Supabase allows a fresh confirmation or recovery email 60 seconds after the
+ * last one for the same address, so the button waits that long before asking
+ * again — the hourly cap is a separate limit anyway.
+ */
+const RESEND_SECONDS = 60
+
+const COPY = {
+  confirm: {
+    title: 'Confirm your email',
+    resendLabel: 'Resend confirmation email',
+    description: (email: ReactNode) => (
+      <>We sent a confirmation link to {email}. Open it to finish signing in.</>
+    ),
+  },
+  reset: {
+    title: 'Check your inbox',
+    resendLabel: 'Resend reset link',
+    description: (email: ReactNode) => (
+      <>
+        We sent a password reset link to {email}. Open it to choose a new
+        password.
+      </>
+    ),
+  },
+} as const
 
 /**
- * Shown in two places: right after signing up (no session yet) and whenever a
- * session turns out to belong to an address that was never confirmed.
+ * Shown wherever we have emailed the visitor something they have to click:
+ * after signing up, after asking for a password reset, and whenever a session
+ * turns out to belong to an address that was never confirmed.
  */
-export function ConfirmEmailCard({
+export function CheckInboxCard({
   email,
+  kind,
+  onResend,
   onUseDifferentEmail,
 }: {
   email: string
+  kind: keyof typeof COPY
+  onResend: () => Promise<void>
   onUseDifferentEmail: () => void
 }) {
-  const { resendConfirmation } = useAuth()
+  const { title, resendLabel, description } = COPY[kind]
 
   const [busy, setBusy] = useState(false)
   const [cooldown, setCooldown] = useState(0)
@@ -45,7 +74,7 @@ export function ConfirmEmailCard({
     setError(null)
 
     try {
-      await resendConfirmation(email)
+      await onResend()
       setResent(true)
       setCooldown(RESEND_SECONDS)
     } catch (err) {
@@ -61,11 +90,13 @@ export function ConfirmEmailCard({
         <div className="bg-primary text-primary-foreground mb-2 flex size-9 items-center justify-center rounded-lg">
           <MailCheck className="size-4" />
         </div>
-        <CardTitle className="text-xl">Confirm your email</CardTitle>
+        <CardTitle className="text-xl">{title}</CardTitle>
         <CardDescription>
-          We sent a confirmation link to{' '}
-          <span className="text-foreground font-medium break-all">{email}</span>
-          . Open it to finish signing in.
+          {description(
+            <span className="text-foreground font-medium break-all">
+              {email}
+            </span>,
+          )}
         </CardDescription>
       </CardHeader>
 
@@ -92,7 +123,7 @@ export function ConfirmEmailCard({
             ? `Resend in ${cooldown}s`
             : busy
               ? 'Sending…'
-              : 'Resend confirmation email'}
+              : resendLabel}
         </Button>
 
         <Button variant="ghost" className="w-full" onClick={onUseDifferentEmail}>

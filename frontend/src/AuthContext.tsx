@@ -21,6 +21,11 @@ interface AuthContextValue {
    * shows the "Confirm your email" screen instead of the app shell.
    */
   unconfirmedEmail: string | null
+  /**
+   * Set when the visitor arrived from a "reset your password" link, which signs
+   * them in with a session that may only be used to pick a new password.
+   */
+  passwordRecovery: boolean
   login: (credentials: { email: string; password: string }) => Promise<void>
   register: (data: {
     full_name: string
@@ -29,6 +34,10 @@ interface AuthContextValue {
   }) => Promise<{ needsConfirmation: boolean }>
   /** Re-send the confirmation email for an unverified address. */
   resendConfirmation: (email: string) => Promise<void>
+  /** Email a link that lets the visitor choose a new password. */
+  requestPasswordReset: (email: string) => Promise<void>
+  /** Set the password of the signed-in user, used by the recovery screen. */
+  updatePassword: (password: string) => Promise<void>
   logout: () => Promise<void>
   saveProfile: (data: Partial<Me>) => Promise<Me>
 }
@@ -38,6 +47,7 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Me | null>(null)
   const [unconfirmedEmail, setUnconfirmedEmail] = useState<string | null>(null)
+  const [passwordRecovery, setPasswordRecovery] = useState(false)
   const [loading, setLoading] = useState(true)
 
   // The signed-in "user" is the auth user merged with its profile row, so
@@ -85,8 +95,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // never call back into Supabase from inside the callback itself.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active) return
+
+      // A reset link signs the user in with a short-lived session: hold them on
+      // the "choose a new password" screen instead of opening the app shell.
+      if (event === 'PASSWORD_RECOVERY') {
+        setPasswordRecovery(true)
+        setUnconfirmedEmail(null)
+        setLoading(false)
+        return
+      }
 
       setTimeout(async () => {
         await applySession(session)
@@ -122,10 +141,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await api.resendConfirmation(email)
   }, [])
 
+  const requestPasswordReset = useCallback(async (email: string) => {
+    // Come back to the app root so supabase-js can read the recovery token in
+    // the URL and hand us a session.
+    await api.requestPasswordReset(email, window.location.origin)
+  }, [])
+
+  const updatePassword = useCallback(
+    async (password: string) => {
+      await api.updatePassword(password)
+      setPasswordRecovery(false)
+
+      // The recovery session is an ordinary one from here on, so run it through
+      // the same confirmation check as any other sign-in.
+      await applySession(await api.session())
+    },
+    [applySession],
+  )
+
   const logout = useCallback(async () => {
     await api.logout()
     setUser(null)
     setUnconfirmedEmail(null)
+    setPasswordRecovery(false)
   }, [])
 
   const saveProfile = useCallback(async (data: Partial<Me>) => {
@@ -139,9 +177,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       unconfirmedEmail,
+      passwordRecovery,
       login,
       register,
       resendConfirmation,
+      requestPasswordReset,
+      updatePassword,
       logout,
       saveProfile,
     }),
@@ -149,9 +190,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       unconfirmedEmail,
+      passwordRecovery,
       login,
       register,
       resendConfirmation,
+      requestPasswordReset,
+      updatePassword,
       logout,
       saveProfile,
     ],
