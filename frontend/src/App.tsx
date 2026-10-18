@@ -8,6 +8,7 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import Companies from '@/pages/Companies'
+import ConfirmEmail from '@/pages/ConfirmEmail'
 import Dashboard from '@/pages/Dashboard'
 import InvoiceDetail from '@/pages/InvoiceDetail'
 import Invoices from '@/pages/Invoices'
@@ -21,7 +22,7 @@ import Terms from '@/pages/Terms'
 const legalPaths = ['/terms', '/privacy']
 
 export default function App() {
-  const { user, loading } = useAuth()
+  const { user, loading, unconfirmedEmail } = useAuth()
   const { pathname } = useLocation()
 
   // The legal pages carry their own frame and must work signed out, so they are
@@ -42,6 +43,9 @@ export default function App() {
       </div>
     )
   }
+
+  // A session whose address was never confirmed never reaches the app shell.
+  if (unconfirmedEmail) return <ConfirmEmail email={unconfirmedEmail} />
 
   if (!user) return <Login />
 

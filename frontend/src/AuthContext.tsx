@@ -7,6 +7,7 @@ import {
   useState,
 } from 'react'
 import type { ReactNode } from 'react'
+import type { Session } from '@supabase/supabase-js'
 
 import { api } from '@/api'
 import { supabase } from '@/supabase'
@@ -15,12 +16,19 @@ import type { Me } from '@/types'
 interface AuthContextValue {
   user: Me | null
   loading: boolean
+  /**
+   * Set when a session exists but its address has not been confirmed. The app
+   * shows the "Confirm your email" screen instead of the app shell.
+   */
+  unconfirmedEmail: string | null
   login: (credentials: { email: string; password: string }) => Promise<void>
   register: (data: {
     full_name: string
     email: string
     password: string
-  }) => Promise<void>
+  }) => Promise<{ needsConfirmation: boolean }>
+  /** Re-send the confirmation email for an unverified address. */
+  resendConfirmation: (email: string) => Promise<void>
   logout: () => Promise<void>
   saveProfile: (data: Partial<Me>) => Promise<Me>
 }
@@ -29,6 +37,7 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Me | null>(null)
+  const [unconfirmedEmail, setUnconfirmedEmail] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   // The signed-in "user" is the auth user merged with its profile row, so
@@ -41,6 +50,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  /**
+   * Applies a session to the context.
+   *
+   * "Confirm email" is a Supabase project setting, not something the browser
+   * can switch on — so the app refuses an unverified session itself rather than
+   * trusting that the project has the setting enabled.
+   */
+  const applySession = useCallback(
+    async (session: Session | null) => {
+      if (!session) {
+        setUser(null)
+        setUnconfirmedEmail(null)
+        return
+      }
+
+      if (!session.user.email_confirmed_at) {
+        setUser(null)
+        setUnconfirmedEmail(session.user.email ?? '')
+        return
+      }
+
+      setUnconfirmedEmail(null)
+      await loadProfile()
+    },
+    [loadProfile],
+  )
+
   useEffect(() => {
     let active = true
 
@@ -52,14 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!active) return
 
-      if (!session) {
-        setUser(null)
-        setLoading(false)
-        return
-      }
-
       setTimeout(async () => {
-        await loadProfile()
+        await applySession(session)
         if (active) setLoading(false)
       }, 0)
     })
@@ -68,27 +98,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       active = false
       subscription.unsubscribe()
     }
-  }, [loadProfile])
+  }, [applySession])
 
   const login = useCallback(
     async (credentials: { email: string; password: string }) => {
-      await api.login(credentials)
-      await loadProfile()
+      await applySession(await api.login(credentials))
     },
-    [loadProfile],
+    [applySession],
   )
 
   const register = useCallback(
     async (data: { full_name: string; email: string; password: string }) => {
-      await api.register(data)
-      await loadProfile()
+      const session = await api.register(data)
+
+      await applySession(session)
+
+      return { needsConfirmation: session === null }
     },
-    [loadProfile],
+    [applySession],
   )
+
+  const resendConfirmation = useCallback(async (email: string) => {
+    await api.resendConfirmation(email)
+  }, [])
 
   const logout = useCallback(async () => {
     await api.logout()
     setUser(null)
+    setUnconfirmedEmail(null)
   }, [])
 
   const saveProfile = useCallback(async (data: Partial<Me>) => {
@@ -98,8 +135,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ user, loading, login, register, logout, saveProfile }),
-    [user, loading, login, register, logout, saveProfile],
+    () => ({
+      user,
+      loading,
+      unconfirmedEmail,
+      login,
+      register,
+      resendConfirmation,
+      logout,
+      saveProfile,
+    }),
+    [
+      user,
+      loading,
+      unconfirmedEmail,
+      login,
+      register,
+      resendConfirmation,
+      logout,
+      saveProfile,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

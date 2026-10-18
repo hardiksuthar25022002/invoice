@@ -1,8 +1,9 @@
 import { Eye, EyeOff, ReceiptText } from 'lucide-react'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 
 import { useAuth } from '@/AuthContext'
+import { ConfirmEmailCard } from '@/components/confirm-email-card'
+import { LegalFooter } from '@/components/legal-footer'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -35,6 +36,8 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // Set after signing up when Supabase wants the address confirmed first.
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null)
 
   const isSignup = mode === 'signup'
 
@@ -54,11 +57,14 @@ export default function Login() {
 
     try {
       if (isSignup) {
-        await register({
+        const { needsConfirmation } = await register({
           full_name: form.full_name.trim(),
           email: form.email.trim(),
           password: form.password,
         })
+
+        // "Confirm email" is on: there is no session until the link is opened.
+        if (needsConfirmation) setPendingEmail(form.email.trim())
       } else {
         await login({
           email: form.email.trim(),
@@ -69,6 +75,24 @@ export default function Login() {
       setError(err instanceof Error ? err.message : String(err))
       setBusy(false)
     }
+  }
+
+  if (pendingEmail) {
+    return (
+      <div className="bg-muted/40 flex min-h-svh flex-col items-center justify-center gap-6 p-4">
+        <ConfirmEmailCard
+          email={pendingEmail}
+          onUseDifferentEmail={() => {
+            setPendingEmail(null)
+            setMode('signin')
+            setShowPassword(false)
+            setForm({ full_name: '', email: '', password: '' })
+          }}
+        />
+
+        <LegalFooter />
+      </div>
+    )
   }
 
   return (
@@ -168,23 +192,7 @@ export default function Login() {
         </CardContent>
       </Card>
 
-      <p className="text-muted-foreground max-w-sm text-center text-xs leading-relaxed">
-        By continuing you agree to our{' '}
-        <Link
-          to="/terms"
-          className="text-foreground font-medium underline-offset-4 hover:underline"
-        >
-          Terms of Service
-        </Link>{' '}
-        and{' '}
-        <Link
-          to="/privacy"
-          className="text-foreground font-medium underline-offset-4 hover:underline"
-        >
-          Privacy Policy
-        </Link>
-        .
-      </p>
+      <LegalFooter />
     </div>
   )
 }

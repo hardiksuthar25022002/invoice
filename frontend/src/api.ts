@@ -1,4 +1,5 @@
 import { supabase } from '@/supabase'
+import type { Session } from '@supabase/supabase-js'
 import type {
   Company,
   CompanyInput,
@@ -100,7 +101,7 @@ export const api = {
     full_name: string
     email: string
     password: string
-  }) {
+  }): Promise<Session | null> {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
@@ -109,15 +110,8 @@ export const api = {
 
     if (error) throw new ApiError(errorStatus(error, 400), error.message)
 
-    // With email confirmation enabled there is no session until the user
-    // clicks the link; surface that instead of silently doing nothing.
-    if (!data.session) {
-      throw new ApiError(
-        200,
-        'Check your inbox to confirm your email, then sign in.',
-      )
-    }
-
+    // With "Confirm email" on there is no session until the link is opened, so
+    // null tells the caller to show the "check your inbox" screen.
     return data.session
   },
 
@@ -130,6 +124,17 @@ export const api = {
     if (error) throw new ApiError(error.status ?? 401, error.message)
 
     return data.session
+  },
+
+  /** Re-send the confirmation email for an address that hasn't been verified. */
+  async resendConfirmation(email: string) {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim().toLowerCase(),
+    })
+
+    // Supabase answers 429 once the hourly email limit is reached.
+    if (error) throw new ApiError(errorStatus(error, 429), error.message)
   },
 
   async logout() {

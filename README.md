@@ -62,6 +62,27 @@ Open **http://localhost:5173** and create an account from the first screen.
 > *Authentication → Providers → Email → Confirm email*. With it on, you'll see
 > "Check your inbox to confirm your email, then sign in."
 
+### 5. Require email confirmation
+
+Supabase signs new users straight in unless you tell it otherwise. To make
+everyone verify their address first, turn on **Authentication → Providers →
+Email → Confirm email**. After that `signUp` returns no session, so the app
+shows a "Confirm your email" screen with a resend button until the link in the
+email is opened.
+
+That switch is a **project setting** and cannot be forced from the browser —
+doing so would need the service-role key, which must never ship in a frontend.
+What the app does enforce is the consequence: any session whose
+`email_confirmed_at` is empty is refused and gets that same screen, so an
+unverified account never reaches the invoices.
+
+With the Supabase CLI the same option lives in `supabase/config.toml`:
+
+```toml
+[auth.email]
+enable_confirmations = true
+```
+
 ## Deploying
 
 The SPA lives in `frontend/`. Both hosts below build it with `npm run build`
@@ -103,8 +124,9 @@ redirects land back on your app.
 ## Features
 
 - **Accounts** — sign up and sign in with Supabase Auth (email + password).
-  Every company and invoice belongs to the account that created it, enforced by
-  row level security in the database.
+  Email confirmation can be required (see step 5), and the app refuses an
+  unverified session either way. Every company and invoice belongs to the
+  account that created it, enforced by row level security in the database.
 - **Profile** — your own details (business name, job title, address, phone, tax
   ID, PAN, SAC code, bank/UPI) are the **billed from** side of every invoice
 - **Companies** — the clients you bill, the **billed to** party
@@ -157,11 +179,14 @@ frontend/
     types.ts                 # shared domain types
     pdf.ts                   # browser PDF export (html2canvas + jsPDF)
     pages/                   # Login, Dashboard, Companies, NewCompany, Profile,
-                             # Invoices, NewInvoice, InvoiceDetail, Terms, Privacy
+                             # Invoices, NewInvoice, InvoiceDetail, ConfirmEmail,
+                             # Terms, Privacy
                              # (the *.test.tsx files sit next to what they test)
     components/
       layout/                # app-sidebar, header (breadcrumbs), main, nav-*
       ui/                    # shadcn/ui primitives
+      confirm-email-card.tsx # "Confirm your email" + resend
+      legal-footer.tsx       # terms/privacy line under the sign-in screens
       legal-page.tsx         # frame shared by Terms and Privacy
       theme-switch.tsx       # light / dark / system
     context/theme-context.tsx  # theme state, applied as `.dark` on <html>
