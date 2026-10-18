@@ -55,12 +55,18 @@ bun run dev          # or: npm run dev
 bun run test         # or: npm test — component tests on React 19
 ```
 
-Open **http://localhost:5173** and create an account from the first screen.
+Open **http://localhost:5173**, enter your email, and type the six-digit code
+Supabase emails you. There is no sign-up form: verifying a code for a new
+address creates the account.
 
-> **Local dev tip:** by default Supabase asks new users to confirm their email.
-> For a frictionless local setup, turn that off under
-> *Authentication → Providers → Email → Confirm email*. With it on, you'll see
-> "Check your inbox to confirm your email, then sign in."
+> **Make the code show up in the email.** Supabase's default *Magic Link*
+> template only contains `{{ .ConfirmationURL }}`. Add `{{ .Token }}` to it
+> under *Authentication → Email Templates* — otherwise the email still works,
+> but by clicking the link rather than typing a code.
+>
+> **Local dev tip:** the built-in SMTP service is rate limited to a couple of
+> emails per hour, which is easy to hit while testing. Wait it out, or connect
+> your own SMTP under *Project Settings → Auth → SMTP Settings*.
 
 ## Deploying
 
@@ -102,9 +108,10 @@ redirects land back on your app.
 
 ## Features
 
-- **Accounts** — sign up and sign in with Supabase Auth (email + password).
-  Every company and invoice belongs to the account that created it, enforced by
-  row level security in the database.
+- **Accounts** — passwordless sign-in: Supabase emails a one-time code (or a
+  magic link) and verifying it creates the account if it is new. Every company
+  and invoice belongs to the account that created it, enforced by row level
+  security in the database.
 - **Profile** — your own details (business name, job title, address, phone, tax
   ID, PAN, SAC code, bank/UPI) are the **billed from** side of every invoice
 - **Companies** — the clients you bill, the **billed to** party
@@ -119,6 +126,8 @@ redirects land back on your app.
   scroll sideways, and the invoice builder stacks its line items
 - **Light and dark** — a theme switch in the header (light / dark / system);
   the invoice preview stays a white sheet in both, so the PDF is unchanged
+- **Terms and privacy pages** — `/terms` and `/privacy` are public routes,
+  linked from the sign-in screen and from the Profile page
 
 ## How data access works
 
@@ -146,21 +155,24 @@ frontend/
   components.json            # shadcn/ui configuration (radix-nova, neutral)
   public/_redirects          # SPA fallback for Netlify
   vercel.json                # SPA rewrite for Vercel
+  vitest.config.ts           # jsdom component tests (vitest)
   .env.example               # VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
   src/
     supabase.ts              # supabase-js client
     api.ts                   # data layer (auth, companies, invoices, dashboard)
-    AuthContext.tsx          # session + profile state
+    AuthContext.tsx          # session + profile state, email-OTP sign-in
     types.ts                 # shared domain types
     pdf.ts                   # browser PDF export (html2canvas + jsPDF)
     pages/                   # Login, Dashboard, Companies, NewCompany, Profile,
-                             # Invoices, NewInvoice, InvoiceDetail
+                             # Invoices, NewInvoice, InvoiceDetail, Terms, Privacy
+                             # (the *.test.tsx files sit next to what they test)
     components/
       layout/                # app-sidebar, header (breadcrumbs), main, nav-*
       ui/                    # shadcn/ui primitives
+      legal-page.tsx         # frame shared by Terms and Privacy
       theme-switch.tsx       # light / dark / system
     context/theme-context.tsx  # theme state, applied as `.dark` on <html>
-    lib/                     # cn() and INR/date formatters
+    lib/                     # cn(), legal copy, INR/date formatters
     index.css                # Tailwind v4 + shadcn theme tokens (hex)
     styles/invoice.css       # the invoice "paper" (hex-only, for html2canvas)
 ```
@@ -175,8 +187,12 @@ frontend/
   that uses `asChild` (dropdown menus, alert dialogs, tooltips) loses its anchor
   node and its popup renders off-screen — the buttons look dead.
   `src/components/ui/ref-forwarding.test.tsx` guards this.
-- Auth is Supabase's email/password provider: no password reset UI is wired up
-  yet (Supabase handles the reset emails, the app doesn't link to them).
+- Auth is passwordless (Supabase email OTP), so there is no password to reset
+  and no password stored anywhere. The sign-in email must keep both the magic
+  link and the `{{ .Token }}` code to support either path.
+- The Terms of Service and Privacy Policy pages ship as **templates** — they are
+  written for this app, but review them before relying on them. Change the
+  operator name and contact address in `frontend/src/lib/legal.ts`.
 - The invoice PDF is a raster capture of the on-screen preview, so its text is
   not selectable. The capture is taken at A4 measurements and drawn edge to
   edge, so the sheet fills the page exactly — a very long invoice (dozens of

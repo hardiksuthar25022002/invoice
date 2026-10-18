@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { useAuth } from '@/AuthContext'
@@ -253,6 +254,24 @@ export default function Profile() {
           </Button>
         </div>
       </form>
+
+      <p className="text-muted-foreground mt-8 text-sm">
+        <Link
+          to="/terms"
+          className="hover:text-foreground underline underline-offset-4"
+        >
+          Terms of Service
+        </Link>
+        <span aria-hidden className="px-2">
+          ·
+        </span>
+        <Link
+          to="/privacy"
+          className="hover:text-foreground underline underline-offset-4"
+        >
+          Privacy Policy
+        </Link>
+      </p>
     </>
   )
 }

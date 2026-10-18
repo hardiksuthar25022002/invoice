@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 
 import { useAuth } from '@/AuthContext'
 import { AppHeader } from '@/components/layout/header'
@@ -14,10 +14,26 @@ import Invoices from '@/pages/Invoices'
 import Login from '@/pages/Login'
 import NewCompany from '@/pages/NewCompany'
 import NewInvoice from '@/pages/NewInvoice'
+import Privacy from '@/pages/Privacy'
 import Profile from '@/pages/Profile'
+import Terms from '@/pages/Terms'
+
+const legalPaths = ['/terms', '/privacy']
 
 export default function App() {
   const { user, loading } = useAuth()
+  const { pathname } = useLocation()
+
+  // The legal pages carry their own frame and must work signed out, so they are
+  // handled before any auth branching.
+  if (legalPaths.includes(pathname)) {
+    return (
+      <Routes>
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
+      </Routes>
+    )
+  }
 
   if (loading) {
     return (

@@ -15,12 +15,10 @@ import type { Me } from '@/types'
 interface AuthContextValue {
   user: Me | null
   loading: boolean
-  login: (credentials: { email: string; password: string }) => Promise<void>
-  register: (data: {
-    full_name: string
-    email: string
-    password: string
-  }) => Promise<void>
+  /** Email a one-time code to the address. */
+  sendLoginCode: (email: string) => Promise<void>
+  /** Exchange that code for a session. */
+  verifyLoginCode: (email: string, token: string) => Promise<void>
   logout: () => Promise<void>
   saveProfile: (data: Partial<Me>) => Promise<Me>
 }
@@ -70,17 +68,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [loadProfile])
 
-  const login = useCallback(
-    async (credentials: { email: string; password: string }) => {
-      await api.login(credentials)
-      await loadProfile()
-    },
-    [loadProfile],
-  )
+  const sendLoginCode = useCallback(async (email: string) => {
+    await api.sendLoginCode(email)
+  }, [])
 
-  const register = useCallback(
-    async (data: { full_name: string; email: string; password: string }) => {
-      await api.register(data)
+  const verifyLoginCode = useCallback(
+    async (email: string, token: string) => {
+      await api.verifyLoginCode(email, token)
       await loadProfile()
     },
     [loadProfile],
@@ -98,8 +92,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ user, loading, login, register, logout, saveProfile }),
-    [user, loading, login, register, logout, saveProfile],
+    () => ({ user, loading, sendLoginCode, verifyLoginCode, logout, saveProfile }),
+    [user, loading, sendLoginCode, verifyLoginCode, logout, saveProfile],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

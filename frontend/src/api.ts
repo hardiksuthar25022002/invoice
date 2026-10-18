@@ -90,44 +90,36 @@ function cleanProfile(update: Partial<Me>) {
 }
 
 export const api = {
-  // ---------------- auth ----------------
+  // ---------------- auth (passwordless, email OTP) ----------------
 
-  async register({
-    full_name,
-    email,
-    password,
-  }: {
-    full_name: string
-    email: string
-    password: string
-  }) {
-    const { data, error } = await supabase.auth.signUp({
+  /**
+   * Emails a one-time code (plus a magic link) to the address. Supabase creates
+   * the account on first verification, so there is no separate sign-up step;
+   * `handle_new_user()` gives the new user an empty profile row.
+   */
+  async sendLoginCode(email: string) {
+    const { error } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
-      password,
-      options: { data: { full_name: full_name.trim() } },
+      options: {
+        shouldCreateUser: true,
+        // Where the magic link lands; the app picks the session out of the URL.
+        emailRedirectTo: window.location.origin,
+      },
     })
 
-    if (error) throw new ApiError(errorStatus(error, 400), error.message)
-
-    // With email confirmation enabled there is no session until the user
-    // clicks the link; surface that instead of silently doing nothing.
-    if (!data.session) {
-      throw new ApiError(
-        200,
-        'Check your inbox to confirm your email, then sign in.',
-      )
-    }
-
-    return data.session
+    // Supabase returns 429 when the per-hour email limit is hit.
+    if (error) throw new ApiError(errorStatus(error, 429), error.message)
   },
 
-  async login({ email, password }: { email: string; password: string }) {
-    const { data, error } = await supabase.auth.signInWithPassword({
+  /** Exchange the code from the email for a session. */
+  async verifyLoginCode(email: string, token: string) {
+    const { data, error } = await supabase.auth.verifyOtp({
       email: email.trim().toLowerCase(),
-      password,
+      token: token.trim(),
+      type: 'email',
     })
 
-    if (error) throw new ApiError(error.status ?? 401, error.message)
+    if (error) throw new ApiError(errorStatus(error, 401), error.message)
 
     return data.session
   },
