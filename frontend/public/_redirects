@@ -1,0 +1,3 @@
+# SPA fallback: serve index.html for any unmatched path so client-side
+# routes survive a reload or a direct visit (e.g. /invoices/12).
+/*  /index.html  200

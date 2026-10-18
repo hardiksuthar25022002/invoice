@@ -1,0 +1,16 @@
+# Netlify configuration for the Ledger invoice maker.
+# The SPA lives in frontend/, so Netlify builds from there and publishes dist/.
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# React Router handles all routes client-side, so every path must serve
+# index.html instead of a 404 (e.g. a reload on /invoices/12).
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

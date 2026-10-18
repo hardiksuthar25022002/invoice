@@ -3,7 +3,8 @@
 A small full-stack invoicing app: add clients, generate invoices, and track
 everything from a dashboard.
 
-- **Frontend**: React (Vite), plain CSS design system, deployed on **Vercel**
+- **Frontend**: React (Vite), plain CSS design system, deploys to **Netlify**
+  (or **Vercel**)
 - **Backend**: none — **Supabase** provides auth, the Postgres database, and
   row level security
 - **PDFs**: rendered in the browser, downloaded straight from the invoice page
@@ -60,20 +61,42 @@ Open **http://localhost:5173** and create an account from the first screen.
 > *Authentication → Providers → Email → Confirm email*. With it on, you'll see
 > "Check your inbox to confirm your email, then sign in."
 
-## Deploying to Vercel
+## Deploying
 
-The SPA lives in `frontend/`, so set Vercel's **Root Directory** to
-`frontend`. Vercel auto-detects Vite; `frontend/vercel.json` handles the
-client-side route fallback so `/invoices/12` works on reload.
+The SPA lives in `frontend/`. Both hosts below build it with `npm run build`
+and serve `frontend/dist`.
 
-Add the two environment variables in *Vercel → Project → Settings → Environment
-Variables* (for **Production**, **Preview**, and **Development**):
+### Netlify
+
+`netlify.toml` in the repo root already sets the base directory, build command,
+publish directory, and the SPA fallback. Point **Netlify → Add new site →
+Import an existing project** at this repository and accept the detected
+settings — no manual configuration is needed.
+
+Add the two environment variables in *Site configuration → Environment
+variables* (they apply to all deploy contexts):
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 
-They are inlined at build time, so redeploy after changing them. Finally, add
-your Vercel domain to *Supabase → Authentication → URL Configuration* so auth
+`frontend/public/_redirects` does the same job as the `netlify.toml` redirect,
+so client-side routes keep working even if the config file is bypassed.
+
+The repo ships `frontend/bun.lock`, so Netlify installs with Bun. If that step
+fails on the build image, set the site's **Install command** to `npm install`
+in the UI — the build reads `package.json` either way.
+
+### Vercel
+
+Set Vercel's **Root Directory** to `frontend`; Vercel auto-detects Vite and
+`frontend/vercel.json` handles the SPA fallback. Add the same two environment
+variables under *Project → Settings → Environment Variables*.
+
+### Both
+
+The variables are inlined at build time, so redeploy after changing them.
+Finally, add your deployed domain to *Supabase → Authentication → URL
+Configuration* (Site URL, plus Redirect URLs for preview domains) so auth
 redirects land back on your app.
 
 ## Features
@@ -117,6 +140,7 @@ supabase/
   migrations/0001_init.sql   # tables, RLS, triggers, dashboard_stats()
 
 frontend/
+  public/_redirects           # SPA fallback for Netlify
   vercel.json                # SPA rewrite for Vercel
   .env.example               # VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
   src/
@@ -129,6 +153,8 @@ frontend/
     components/              # Sidebar, StatusStamp
     index.css                # design system (tokens, layout, components)
 ```
+
+`netlify.toml` sits at the repository root so Netlify builds `frontend/`.
 
 ## Notes / next steps
 
