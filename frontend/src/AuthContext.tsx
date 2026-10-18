@@ -44,6 +44,19 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+/**
+ * Where Supabase sends the user after they click a link in an auth email.
+ *
+ * A project has a single "Site URL" (Authentication → URL Configuration), so
+ * omitting this sends production users wherever that one value points — often
+ * the localhost URL left over from setup. Passing the current origin makes each
+ * environment return to itself; the origin still has to be listed under
+ * "Redirect URLs" in the project, or Supabase quietly falls back to Site URL.
+ */
+function emailRedirectUrl() {
+  return window.location.origin
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Me | null>(null)
   const [unconfirmedEmail, setUnconfirmedEmail] = useState<string | null>(null)
@@ -128,7 +141,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(
     async (data: { full_name: string; email: string; password: string }) => {
-      const session = await api.register(data)
+      const session = await api.register({
+        ...data,
+        redirectTo: emailRedirectUrl(),
+      })
 
       await applySession(session)
 
@@ -138,13 +154,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const resendConfirmation = useCallback(async (email: string) => {
-    await api.resendConfirmation(email)
+    await api.resendConfirmation(email, emailRedirectUrl())
   }, [])
 
   const requestPasswordReset = useCallback(async (email: string) => {
     // Come back to the app root so supabase-js can read the recovery token in
     // the URL and hand us a session.
-    await api.requestPasswordReset(email, window.location.origin)
+    await api.requestPasswordReset(email, emailRedirectUrl())
   }, [])
 
   const updatePassword = useCallback(

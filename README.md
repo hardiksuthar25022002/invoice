@@ -80,9 +80,25 @@ unverified account never reaches the invoices.
 
 Reset links come from the *Forgot password?* button on the sign-in card. The
 link returns to the app root, where supabase-js turns it into a recovery session
-and the app asks for the new password. Keep *Authentication → URL Configuration*
-(Site URL, plus any localhost/preview entries) up to date, or those links will
-not come back to the app.
+and the app asks for the new password.
+
+**Where the links go.** Every auth email lands on the project's **Site URL**
+unless the call asks for something else — which is why a deployed app can still
+send people to `http://localhost:5173`. The app now passes its own origin, so
+local dev returns to localhost and the deployed build returns to its own domain.
+Supabase only honours that when the URL is allow-listed:
+
+1. *Authentication → URL Configuration → **Site URL***: set your production URL.
+   It is the fallback for anything not allow-listed, so a leftover localhost
+   value here is a production bug.
+2. ***Redirect URLs***: add every origin that may be asked for, wildcards
+   included — `https://your-app.netlify.app/**`, `http://localhost:5173/**`,
+   `https://**--your-site.netlify.app/**` for preview deploys.
+3. Leave the email templates' `{{ .ConfirmationURL }}` as they are: it carries
+   whichever redirect through.
+
+If a link still goes to the wrong place, the URL simply is not on that list —
+Supabase falls back to Site URL silently instead of erroring.
 
 **Sending limits.** Supabase's built-in mail service sends **2 auth emails per
 hour for the whole project** — confirmation, resend and reset all count — and
@@ -142,8 +158,10 @@ variables under *Project → Settings → Environment Variables*.
 
 The variables are inlined at build time, so redeploy after changing them.
 Finally, add your deployed domain to *Supabase → Authentication → URL
-Configuration* (Site URL, plus Redirect URLs for preview domains) so auth
-redirects land back on your app.
+Configuration*: **Site URL** = the deployed URL, and the same origin under
+**Redirect URLs** (`https://your-app.netlify.app/**`). Confirmation and reset
+links honour an origin only if it is on that list — see
+*Emails: confirmation, reset, and their limits* above for the details.
 
 ## Features
 

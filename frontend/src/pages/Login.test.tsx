@@ -179,7 +179,11 @@ describe('Login (email + password)', () => {
     expect(supa.signUp).toHaveBeenCalledWith({
       email: 'ravi@example.com',
       password: 'hunter2hunter2',
-      options: { data: { full_name: 'Ravi Kumar' } },
+      options: {
+        data: { full_name: 'Ravi Kumar' },
+        // The link must return to *this* origin, not the project's Site URL.
+        emailRedirectTo: window.location.origin,
+      },
     })
     expect(supa.signInWithPassword).not.toHaveBeenCalled()
   })
@@ -239,6 +243,7 @@ describe('Login (email + password)', () => {
     expect(supa.resend).toHaveBeenCalledWith({
       type: 'signup',
       email: 'ravi@example.com',
+      options: { emailRedirectTo: window.location.origin },
     })
   })
 

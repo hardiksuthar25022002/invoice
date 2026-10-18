@@ -117,15 +117,20 @@ export const api = {
     full_name,
     email,
     password,
+    redirectTo,
   }: {
     full_name: string
     email: string
     password: string
+    redirectTo?: string
   }): Promise<Session | null> {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
-      options: { data: { full_name: full_name.trim() } },
+      options: {
+        data: { full_name: full_name.trim() },
+        ...(redirectTo ? { emailRedirectTo: redirectTo } : {}),
+      },
     })
 
     if (error) throw emailError(error, 400)
@@ -147,10 +152,11 @@ export const api = {
   },
 
   /** Re-send the confirmation email for an address that hasn't been verified. */
-  async resendConfirmation(email: string) {
+  async resendConfirmation(email: string, redirectTo?: string) {
     const { error } = await supabase.auth.resend({
       type: 'signup',
       email: email.trim().toLowerCase(),
+      ...(redirectTo ? { options: { emailRedirectTo: redirectTo } } : {}),
     })
 
     if (error) throw emailError(error, 429)
