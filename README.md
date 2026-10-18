@@ -55,28 +55,77 @@ bun run dev          # or: npm run dev
 bun run test         # or: npm test — component tests on React 19
 ```
 
-Open **http://localhost:5173** and create an account from the first screen.
+Open **http://localhost:5173** and sign in. There is no self sign-up: accounts
+are created by the workspace owner (step 5).
 
 > **Local dev tip:** by default Supabase asks new users to confirm their email.
 > Running `supabase start` sends those emails to **Mailpit** at
 > http://localhost:54324 instead of the internet, so they arrive instantly and
 > there is no limit. Against a hosted project you get **2 auth emails per hour**
-> unless you configure custom SMTP — see *Emails: confirmation, reset, and their
-> limits* below.
+> unless you configure custom SMTP — see *Emails* in step 6.
 
-### 5. Emails: confirmation, reset, and their limits
+### 5. Close sign-ups and add users
 
-Supabase signs new users straight in unless you tell it otherwise. To make
-everyone verify their address first, turn on **Authentication → Providers →
-Email → Confirm email**. After that `signUp` returns no session, so the app
-shows a "Confirm your email" screen with a resend button until the link in the
-email is opened.
+Sign-ups are **off** in this project, and the app has no sign-up form: the sign-in
+card offers *Forgot password?* and nothing else. Accounts are created by you, the
+workspace owner, from the Supabase dashboard.
+
+1. **Create your own account first**, while sign-ups are still open, then confirm
+   your email. (Already have one? Skip ahead.)
+2. **Close the door.** *Authentication → Providers → Email* → turn off **Allow new
+   users to sign up**. Only existing users can sign in after that, and a direct
+   call to the sign-up endpoint is refused. With the CLI, in
+   `supabase/config.toml`:
+
+   ```toml
+   [auth]
+   enable_signup = false
+   ```
+3. **Add someone.** *Authentication → Users → Add user*, which offers two routes:
+   - **Create new user** — email + password + **Auto Confirm User**. Nothing is
+     emailed, so you pass the password on yourself.
+   - **Send invitation** — emails a link where they choose their own password.
+     Uses the *Invite user* template and expires with *Email OTP Expiration*
+     (1 hour by default).
+4. They get a `profiles` row automatically and fill in their own business details
+   on the Profile page. Each account only ever sees its own companies and
+   invoices.
+
+**Locked out, or need to override a password?** The normal route is *Forgot
+password?* on the sign-in card, or *Authentication → Users* → the user → **Send
+recovery** to mail them a fresh link. To set one yourself without sending
+anything, call the Admin API from your own terminal:
+
+```bash
+export PROJECT_REF=your-project-ref
+export SECRET_KEY=sb_secret_...    # Settings → API keys (a legacy service_role JWT also works)
+
+curl -X PUT "https://$PROJECT_REF.supabase.co/auth/v1/admin/users/$USER_ID" \
+  -H "apikey: $SECRET_KEY" \
+  -H "Authorization: Bearer $SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"password": "a-new-password", "email_confirm": true}'
+```
+
+`$USER_ID` is the UUID on that user's row in the Users table. Adding
+`"email_confirm": true` also clears "Email not confirmed" for the account.
+
+> **The secret key bypasses row level security.** Run that from your own machine;
+> never put it in the app, the repo, a build variable or a chat message. If it
+> leaks, rotate it under *Settings → API keys*.
+
+### 6. Emails: confirmation, reset, and their limits
+
+With sign-ups closed, **Confirm email** (*Authentication → Providers → Email*)
+mainly affects the people you add or invite: when it is on, an account has to
+click the link before it reaches the app, and until then the app shows a
+"Confirm your email" screen with a resend button.
 
 That switch is a **project setting** and cannot be forced from the browser —
-doing so would need the service-role key, which must never ship in a frontend.
-What the app does enforce is the consequence: any session whose
-`email_confirmed_at` is empty is refused and gets that same screen, so an
-unverified account never reaches the invoices.
+doing so would need the secret key, which must never ship in a frontend. What the
+app does enforce is the consequence: any session whose `email_confirmed_at` is
+empty is refused and gets that same screen, so an unverified account never
+reaches the invoices.
 
 Reset links come from the *Forgot password?* button on the sign-in card. The
 link returns to the app root, where supabase-js turns it into a recovery session
@@ -110,8 +159,8 @@ Three ways around it:
 - **Configure custom SMTP** (*Authentication → Emails → SMTP Settings*) with
   Resend, Brevo, Postmark, SES or similar. Only then can *Authentication → Rate
   Limits → Emails sent by Supabase Auth* be raised above 2.
-- **Skip the email while testing.** Add users from *Authentication → Users → Add
-  user* with **Auto Confirm User** ticked — nothing is sent.
+- **Skip the email while testing.** The *Create new user* route in step 5 sends
+  nothing at all.
 
 The app turns that 429 into a plain-English message, and its resend button waits
 60 seconds between attempts (Supabase's per-address limit).
@@ -165,11 +214,11 @@ links honour an origin only if it is on that list — see
 
 ## Features
 
-- **Accounts** — sign up and sign in with Supabase Auth (email + password), with
-  password reset by email. Email confirmation can be required (see step 5), and
-  the app refuses an unverified session either way. Every company and invoice
-  belongs to the account that created it, enforced by row level security in the
-  database.
+- **Accounts** — sign in with Supabase Auth (email + password), with password
+  reset by email. Sign-ups are closed: you create accounts from the Supabase
+  dashboard (step 5), and email confirmation can be required (step 6). Every
+  company and invoice belongs to the account that created it, enforced by row
+  level security in the database.
 - **Profile** — your own details (business name, job title, address, phone, tax
   ID, PAN, SAC code, bank/UPI) are the **billed from** side of every invoice
 - **Companies** — the clients you bill, the **billed to** party
@@ -248,9 +297,10 @@ frontend/
   that uses `asChild` (dropdown menus, alert dialogs, tooltips) loses its anchor
   node and its popup renders off-screen — the buttons look dead.
   `src/components/ui/ref-forwarding.test.tsx` guards this.
-- Auth is Supabase's email/password provider, with email confirmation (optional,
-  step 5) and password reset through the *Forgot password?* link. Both rely on
-  auth emails, so mind the 2-per-hour built-in limit described in step 5.
+- Auth is Supabase's email/password provider with **sign-ups disabled**. There is
+  no sign-up form in the app; accounts come from *Authentication → Users* and
+  passwords are overridden from the dashboard or with one Admin API call, both
+  described in step 5. The app only ever holds the anon key.
 - The Terms of Service and Privacy Policy pages ship as **templates** — they are
   written for this app, but review them before relying on them. Change the
   operator name and contact address in `frontend/src/lib/legal.ts`.

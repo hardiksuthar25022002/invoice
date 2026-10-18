@@ -27,11 +27,6 @@ interface AuthContextValue {
    */
   passwordRecovery: boolean
   login: (credentials: { email: string; password: string }) => Promise<void>
-  register: (data: {
-    full_name: string
-    email: string
-    password: string
-  }) => Promise<{ needsConfirmation: boolean }>
   /** Re-send the confirmation email for an unverified address. */
   resendConfirmation: (email: string) => Promise<void>
   /** Email a link that lets the visitor choose a new password. */
@@ -139,20 +134,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [applySession],
   )
 
-  const register = useCallback(
-    async (data: { full_name: string; email: string; password: string }) => {
-      const session = await api.register({
-        ...data,
-        redirectTo: emailRedirectUrl(),
-      })
-
-      await applySession(session)
-
-      return { needsConfirmation: session === null }
-    },
-    [applySession],
-  )
-
   const resendConfirmation = useCallback(async (email: string) => {
     await api.resendConfirmation(email, emailRedirectUrl())
   }, [])
@@ -195,7 +176,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       unconfirmedEmail,
       passwordRecovery,
       login,
-      register,
       resendConfirmation,
       requestPasswordReset,
       updatePassword,
@@ -208,7 +188,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       unconfirmedEmail,
       passwordRecovery,
       login,
-      register,
       resendConfirmation,
       requestPasswordReset,
       updatePassword,

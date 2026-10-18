@@ -16,10 +16,9 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 
-type Mode = 'signin' | 'signup' | 'forgot'
+type Mode = 'signin' | 'forgot'
 
 interface LoginForm {
-  full_name: string
   email: string
   password: string
 }
@@ -29,35 +28,27 @@ const HEADINGS: Record<Mode, { title: string; description: string }> = {
     title: 'Sign in to Ledger',
     description: 'Sign in to reach your invoices and companies.',
   },
-  signup: {
-    title: 'Create your account',
-    description: 'Your companies and invoices stay private to your account.',
-  },
   forgot: {
     title: 'Reset your password',
     description: 'We will email you a link to choose a new one.',
   },
 }
 
+/**
+ * Sign-in and password reset only: sign-ups are closed in the Supabase project
+ * and accounts are created by the workspace owner (see the README).
+ */
 export default function Login() {
-  const { login, register, resendConfirmation, requestPasswordReset } = useAuth()
+  const { login, requestPasswordReset } = useAuth()
 
   const [mode, setMode] = useState<Mode>('signin')
-  const [form, setForm] = useState<LoginForm>({
-    full_name: '',
-    email: '',
-    password: '',
-  })
+  const [form, setForm] = useState<LoginForm>({ email: '', password: '' })
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  // Set once Supabase has emailed something the visitor has to click.
-  const [pending, setPending] = useState<{
-    email: string
-    kind: 'confirm' | 'reset'
-  } | null>(null)
+  // Set once Supabase has emailed a reset link the visitor has to click.
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null)
 
-  const isSignup = mode === 'signup'
   const isForgot = mode === 'forgot'
 
   const setField = (field: keyof LoginForm, value: string) =>
@@ -79,16 +70,7 @@ export default function Login() {
     try {
       if (isForgot) {
         await requestPasswordReset(email)
-        setPending({ email, kind: 'reset' })
-      } else if (isSignup) {
-        const { needsConfirmation } = await register({
-          full_name: form.full_name.trim(),
-          email,
-          password: form.password,
-        })
-
-        // "Confirm email" is on: there is no session until the link is opened.
-        if (needsConfirmation) setPending({ email, kind: 'confirm' })
+        setPendingEmail(email)
       } else {
         await login({ email, password: form.password })
       }
@@ -101,21 +83,17 @@ export default function Login() {
     }
   }
 
-  if (pending) {
+  if (pendingEmail) {
     return (
       <div className="bg-muted/40 flex min-h-svh flex-col items-center justify-center gap-6 p-4">
         <CheckInboxCard
-          email={pending.email}
-          kind={pending.kind}
-          onResend={() =>
-            pending.kind === 'reset'
-              ? requestPasswordReset(pending.email)
-              : resendConfirmation(pending.email)
-          }
+          email={pendingEmail}
+          kind="reset"
+          onResend={() => requestPasswordReset(pendingEmail)}
           onUseDifferentEmail={() => {
-            setPending(null)
+            setPendingEmail(null)
             switchMode('signin')
-            setForm({ full_name: '', email: '', password: '' })
+            setForm({ email: '', password: '' })
           }}
         />
 
@@ -138,19 +116,6 @@ export default function Login() {
         <CardContent>
           <form onSubmit={submit}>
             <FieldGroup>
-              {isSignup && (
-                <Field>
-                  <FieldLabel htmlFor="full_name">Full name</FieldLabel>
-                  <Input
-                    id="full_name"
-                    required
-                    autoComplete="name"
-                    value={form.full_name}
-                    onChange={(e) => setField('full_name', e.target.value)}
-                  />
-                </Field>
-              )}
-
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
@@ -171,8 +136,7 @@ export default function Login() {
                       id="password"
                       type={showPassword ? 'text' : 'password'}
                       required
-                      minLength={isSignup ? 8 : undefined}
-                      autoComplete={isSignup ? 'new-password' : 'current-password'}
+                      autoComplete="current-password"
                       className="pr-10"
                       value={form.password}
                       onChange={(e) => setField('password', e.target.value)}
@@ -190,17 +154,15 @@ export default function Login() {
                     </Button>
                   </div>
 
-                  {!isSignup && (
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
-                        onClick={() => switchMode('forgot')}
-                      >
-                        Forgot password?
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
+                      onClick={() => switchMode('forgot')}
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
                 </Field>
               )}
 
@@ -211,13 +173,7 @@ export default function Login() {
               )}
 
               <Button type="submit" className="w-full" disabled={busy}>
-                {busy
-                  ? 'Please wait…'
-                  : isForgot
-                    ? 'Send reset link'
-                    : isSignup
-                      ? 'Create account'
-                      : 'Sign in'}
+                {busy ? 'Please wait…' : isForgot ? 'Send reset link' : 'Sign in'}
               </Button>
             </FieldGroup>
           </form>
@@ -232,16 +188,7 @@ export default function Login() {
                 Back to sign in
               </button>
             ) : (
-              <>
-                {isSignup ? 'Already have an account?' : "Don't have an account?"}{' '}
-                <button
-                  type="button"
-                  className="text-foreground font-medium underline-offset-4 hover:underline"
-                  onClick={() => switchMode(isSignup ? 'signin' : 'signup')}
-                >
-                  {isSignup ? 'Sign in' : 'Create one'}
-                </button>
-              </>
+              'Accounts are created by the workspace owner.'
             )}
           </p>
         </CardContent>

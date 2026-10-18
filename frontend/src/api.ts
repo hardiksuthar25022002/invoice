@@ -113,33 +113,6 @@ function cleanProfile(update: Partial<Me>) {
 export const api = {
   // ---------------- auth ----------------
 
-  async register({
-    full_name,
-    email,
-    password,
-    redirectTo,
-  }: {
-    full_name: string
-    email: string
-    password: string
-    redirectTo?: string
-  }): Promise<Session | null> {
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim().toLowerCase(),
-      password,
-      options: {
-        data: { full_name: full_name.trim() },
-        ...(redirectTo ? { emailRedirectTo: redirectTo } : {}),
-      },
-    })
-
-    if (error) throw emailError(error, 400)
-
-    // With "Confirm email" on there is no session until the link is opened, so
-    // null tells the caller to show the "check your inbox" screen.
-    return data.session
-  },
-
   async login({ email, password }: { email: string; password: string }) {
     const { data, error } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),

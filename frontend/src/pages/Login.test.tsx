@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '@/AuthContext'
 import Login from '@/pages/Login'
 
-/* The Supabase client is mocked, but api.ts and AuthContext are the real
- * thing, so these tests cover the whole sign-in / sign-up path. */
+/* The Supabase client is mocked, but api.ts and AuthContext are the real thing,
+ * so these tests cover the whole sign-in and password-reset path. */
 const supa = vi.hoisted(() => ({
   session: {
     data: {
@@ -31,13 +31,8 @@ const supa = vi.hoisted(() => ({
     },
     error: null,
   },
-  noSession: { data: { session: null }, error: null },
-  signUp: vi.fn(),
   signInWithPassword: vi.fn(),
-  resend: vi.fn().mockResolvedValue({ error: null }),
   resetPasswordForEmail: vi.fn().mockResolvedValue({ error: null }),
-  updateUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
-  getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
   onAuthStateChange: vi.fn(() => ({
     data: { subscription: { unsubscribe: () => {} } },
   })),
@@ -49,12 +44,8 @@ const supa = vi.hoisted(() => ({
 vi.mock('@/supabase', () => ({
   supabase: {
     auth: {
-      signUp: supa.signUp,
       signInWithPassword: supa.signInWithPassword,
-      resend: supa.resend,
       resetPasswordForEmail: supa.resetPasswordForEmail,
-      updateUser: supa.updateUser,
-      getSession: supa.getSession,
       onAuthStateChange: supa.onAuthStateChange,
       getUser: supa.getUser,
       signOut: supa.signOut,
@@ -85,7 +76,6 @@ describe('Login (email + password)', () => {
       globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true
     vi.clearAllMocks()
-    supa.signUp.mockResolvedValue(supa.session)
     supa.signInWithPassword.mockResolvedValue(supa.session)
     supa.resetPasswordForEmail.mockResolvedValue({ error: null })
     container = document.createElement('div')
@@ -133,10 +123,8 @@ describe('Login (email + password)', () => {
   it('signs in with email and password', async () => {
     await renderLogin()
 
-    // Sign-in mode by default: no full name field.
     expect(field('#email')).not.toBeNull()
     expect(field('#password')).not.toBeNull()
-    expect(field('#full_name')).toBeNull()
 
     await act(async () => {
       fill(field('#email')!, 'ravi@example.com')
@@ -152,40 +140,18 @@ describe('Login (email + password)', () => {
       email: 'ravi@example.com',
       password: 'hunter2hunter2',
     })
-    expect(supa.signUp).not.toHaveBeenCalled()
   })
 
-  it('creates an account with a full name', async () => {
+  it('offers no way to sign up', async () => {
     await renderLogin()
 
-    await act(async () => {
-      clickButton('Create one')
-    })
-
-    const fullName = field('#full_name')
-    expect(fullName, 'sign-up asks for a name').not.toBeNull()
-
-    await act(async () => {
-      fill(fullName!, 'Ravi Kumar')
-      fill(field('#email')!, 'ravi@example.com')
-      fill(field('#password')!, 'hunter2hunter2')
-    })
-
-    await act(async () => {
-      submit()
-      await flush()
-    })
-
-    expect(supa.signUp).toHaveBeenCalledWith({
-      email: 'ravi@example.com',
-      password: 'hunter2hunter2',
-      options: {
-        data: { full_name: 'Ravi Kumar' },
-        // The link must return to *this* origin, not the project's Site URL.
-        emailRedirectTo: window.location.origin,
-      },
-    })
-    expect(supa.signInWithPassword).not.toHaveBeenCalled()
+    // Sign-ups are closed in the project, so the app must not dangle a form
+    // that Supabase would reject.
+    expect(field('#full_name')).toBeNull()
+    expect(container.textContent).not.toContain('Create one')
+    expect(container.textContent).toContain(
+      'Accounts are created by the workspace owner',
+    )
   })
 
   it('shows and hides the password', async () => {
@@ -211,40 +177,6 @@ describe('Login (email + password)', () => {
 
     expect(container.querySelector('a[href="/terms"]')).not.toBeNull()
     expect(container.querySelector('a[href="/privacy"]')).not.toBeNull()
-  })
-
-  it('asks for confirmation when sign-up requires a verified email', async () => {
-    supa.signUp.mockResolvedValue(supa.noSession)
-    await renderLogin()
-
-    await act(async () => {
-      clickButton('Create one')
-    })
-
-    await act(async () => {
-      fill(field('#full_name')!, 'Ravi Kumar')
-      fill(field('#email')!, 'ravi@example.com')
-      fill(field('#password')!, 'hunter2hunter2')
-    })
-
-    await act(async () => {
-      submit()
-      await flush()
-    })
-
-    expect(container.textContent).toContain('Confirm your email')
-    expect(container.textContent).toContain('ravi@example.com')
-
-    await act(async () => {
-      clickButton('Resend confirmation email')
-      await flush()
-    })
-
-    expect(supa.resend).toHaveBeenCalledWith({
-      type: 'signup',
-      email: 'ravi@example.com',
-      options: { emailRedirectTo: window.location.origin },
-    })
   })
 
   it('keeps an unconfirmed session out of the app', async () => {
@@ -275,7 +207,6 @@ describe('Login (email + password)', () => {
     // Only the address: there is no password to type when you've lost it.
     expect(field('#email')).not.toBeNull()
     expect(field('#password')).toBeNull()
-    expect(field('#full_name')).toBeNull()
 
     await act(async () => {
       fill(field('#email')!, 'ravi@example.com')
